@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Weather Application</title>
+    <link rel="stylesheet" href="styles/style.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🌤️ Weather Application</h1>
+            <p class="subtitle">Real-time Weather Information</p>
+        </header>
+        
+        <main>
+            <div class="controls">
+                <button id="refreshBtn" class="btn btn-primary">Refresh Weather Data</button>
+                <div id="loading" class="loading hidden">Loading...</div>
+            </div>
+            
+            <div id="weatherContainer" class="weather-grid">
+                <!-- Weather cards will be inserted here -->
+            </div>
+            
+            <div id="errorContainer" class="error-message hidden"></div>
+        </main>
+        
+        <footer>
+            <p>&copy; 2025 Weather Application | Powered by Docker & ASP.NET Core</p>
+        </footer>
+    </div>
+    
+    <script src="js/api.js"></script>
+    <script src="js/ui.js"></script>
+    <script src="js/app.js"></script>
+</body>
+</html>

@@ -1,0 +1,11 @@
+services:
+  backend:
+    # no public port in prod
+    expose:
+      - "8080"
+    restart: unless-stopped
+
+  frontend:
+    ports:
+      - "${FRONTEND_PORT:-3000}:80"
+    restart: unless-stopped

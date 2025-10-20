@@ -1,0 +1,161 @@
+﻿
+name: weather_stack
+
+# Reusable logging options
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
+services:
+
+  # Database (private)
+
+  sqlserver:
+    image: mcr.microsoft.com/mssql/server:2019-latest
+    container_name: sql_server_container
+    environment:
+      ACCEPT_EULA: "Y"
+      MSSQL_PID: "Developer"
+      SA_PASSWORD: ${SA_PASSWORD}
+    volumes:
+      - sqlserver_data:/var/opt/mssql
+    networks:
+      - backend-net
+      - monitoring-net   # allow Prometheus to reach an exporter later if you add one
+    restart: unless-stopped
+    logging: *default-logging
+    mem_limit: 1g
+    cpus: "0.5"
+    healthcheck:
+      # Simple TCP probe for 1433 (works without sqlcmd)
+      test: ["CMD-SHELL", "bash -lc '</dev/tcp/127.0.0.1/1433'"]
+      interval: 10s
+      timeout: 5s
+      retries: 60
+      start_period: 90s
+
+
+  # Backend API (private; exposed to other services only)
+
+  backend:
+    # Build locally from your API folder (relative to this file)
+    build:
+      context: ../Weather Project on DevelopmentServer/Backend
+      dockerfile: Dockerfile
+    image: engkarimsalah/weatherapp:latest
+    container_name: weatherapplication_container
+    environment:
+      ASPNETCORE_URLS: "http://+:8080"
+      ConnectionStrings__DefaultConnection: "Server=sqlserver;Database=${DB_NAME};User Id=sa;Password=${SA_PASSWORD};Encrypt=False;TrustServerCertificate=True"
+    depends_on:
+      sqlserver:
+        condition: service_healthy
+    expose:
+      - "8080"   # only for other containers (no host port)
+    networks:
+      - frontend-net
+      - backend-net
+      - monitoring-net   # so Prometheus can scrape /metrics if you enable it
+    restart: unless-stopped
+    logging: *default-logging
+    mem_limit: 512m
+    cpus: "0.5"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8080/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+    ports:
+      - "8080:8080"
+
+  # Frontend (public)
+
+  frontend:
+    # Build locally from your Frontend folder (relative to this file)
+    build:
+      context: ../Weather Project on DevelopmentServer/Frontend
+      dockerfile: Dockerfile
+    image: engkarimsalah/weatherfrontend:latest
+    container_name: weatherfrontend_container
+    # Public port for the UI
+    ports:
+      - "${FRONTEND_PORT:-3000}:80"
+    depends_on:
+      backend:
+        condition: service_started
+    networks:
+      - frontend-net
+    restart: unless-stopped
+    logging: *default-logging
+    mem_limit: 256m
+    cpus: "0.25"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+
+  # Monitoring: Prometheus
+
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: prometheus
+    ports:
+      - "${PROMETHEUS_PORT:-9090}:9090"
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    networks:
+      - monitoring-net
+      - backend-net
+    restart: unless-stopped
+    logging: *default-logging
+    mem_limit: 256m
+    cpus: "0.25"
+
+ 
+  # Monitoring: Grafana
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: grafana
+    ports:
+      - "${GRAFANA_PORT:-3001}:3000"
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: admin123
+      GF_INSTALL_PLUGINS:
+    volumes:
+      - grafana-data:/var/lib/grafana
+    networks:
+      - monitoring-net
+    depends_on:
+      - prometheus
+    restart: unless-stopped
+    logging: *default-logging
+    mem_limit: 256m
+    cpus: "0.25"
+
+# Networks
+
+networks:
+  frontend-net:
+    driver: bridge
+  backend-net:
+    driver: bridge
+  monitoring-net:
+    driver: bridge
+
+
+# Volumes
+
+volumes:
+  sqlserver_data:
+    driver: local
+  prometheus-data:
+  grafana-data:
